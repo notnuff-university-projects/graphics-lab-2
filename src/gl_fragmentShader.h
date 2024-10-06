@@ -1,0 +1,8 @@
+//
+// Created by notnuff on 27.07.24.
+//
+
+#ifndef OPENGL_LEARN_GL_FRAGMENTSHADER_H
+#define OPENGL_LEARN_GL_FRAGMENTSHADER_H
+
+#endif //OPENGL_LEARN_GL_FRAGMENTSHADER_H
