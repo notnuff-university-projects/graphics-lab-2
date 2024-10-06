@@ -1,4 +1,6 @@
 cmake_minimum_required(VERSION 3.28)
+set(CMAKE_CXX_STANDARD 20)
+
 project(opengl_learn)
 
 # TODO: create a library folder for libraries and link it, practice for libraries creating
@@ -14,9 +16,10 @@ file(GLOB_RECURSE HEADER_FILES
         ${CMAKE_SOURCE_DIR}/src/*.hpp)
 
 # Define the executable
-add_executable(${PROJECT_NAME} ${HEADER_FILES} ${SOURCE_FILES})
+add_executable(${PROJECT_NAME} ${HEADER_FILES} ${SOURCE_FILES}
+        src/gl_vertexShader.h
+        src/gl_fragmentShader.h)
 
-set(CMAKE_CXX_STANDARD 20)
 
 # We need a CMAKE_DIR with some code to find external dependencies
 set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} "${CMAKE_SOURCE_DIR}/cmake/")
@@ -42,7 +45,7 @@ include_directories(
 )
 
 # Define the link libraries
-target_link_libraries(${PROJECT_NAME} ${LIBS})
+target_link_libraries(${PROJECT_NAME} ${LIBS} )
 
 # add OpenGL
 set(OpenGL_GL_PREFERENCE GLVND)
