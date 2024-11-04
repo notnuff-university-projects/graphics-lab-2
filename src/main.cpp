@@ -2,6 +2,8 @@
 #include <bit>
 #include <glad/glad.h>
 #include <GLFW/glfw3.h>
+#include <stb_image.h>
+
 #include <cassert>
 #include <thread>
 #include <ranges>
@@ -199,6 +201,14 @@ VBOandVAO GenerateVBOandVAO(const std::vector<float>& vertices,  const std::vect
 int main() {
 
     auto win = StartOpenGL();
+
+    // bruh, it is not working on wayland
+    GLFWimage icons[1];
+    icons[0].pixels = stbi_load("./img/icon.png", &icons[0].width, &icons[0].height, 0, 4); //rgba channels
+    glfwSetWindowIcon(win, 1, icons);
+    stbi_image_free(icons[0].pixels);
+
+
     glEnable(GL_MULTISAMPLE);
     glfwSwapInterval(0);
 

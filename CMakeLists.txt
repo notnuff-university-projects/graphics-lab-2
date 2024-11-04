@@ -1,9 +1,7 @@
 cmake_minimum_required(VERSION 3.28)
 set(CMAKE_CXX_STANDARD 20)
 
-project(opengl_learn)
-
-# TODO: create a library folder for libraries and link it, practice for libraries creating
+project(lab1_graphics)
 
 # Add list of all source files in /src to the SOURCE_FILES variables
 file(GLOB_RECURSE SOURCE_FILES
@@ -34,8 +32,15 @@ find_package(OpenGL REQUIRED)
 # GLFW
 find_package(GLFW3 REQUIRED)
 
+# Find the installed `stb` library
+find_package(PkgConfig REQUIRED)
+pkg_check_modules(STB REQUIRED stb)
+
+# Include `stb` headers
+include_directories(${STB_INCLUDE_DIRS})
+
 # Put all libraries into a variable
-set(LIBS ${GLFW3_LIBRARY} ${OPENGL_LIBRARY})
+set(LIBS ${GLFW3_LIBRARY} ${OPENGL_LIBRARY} stb)
 
 # Define the include DIRs
 include_directories(
@@ -45,7 +50,16 @@ include_directories(
 )
 
 # Define the link libraries
-target_link_libraries(${PROJECT_NAME} ${LIBS} )
+target_link_libraries(${PROJECT_NAME} ${LIBS} ${STB_LIBRARIES} )
+
+# Add post-build command to copy the file
+add_custom_command(
+        TARGET lab1_graphics
+        POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E copy_directory
+        "${CMAKE_SOURCE_DIR}/img"
+        "$<TARGET_FILE_DIR:lab1_graphics>/img"
+)
 
 # add OpenGL
 set(OpenGL_GL_PREFERENCE GLVND)
