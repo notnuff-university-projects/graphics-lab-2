@@ -4,20 +4,24 @@
 #include <GLFW/glfw3.h>
 #include <stb_image.h>
 
+#include <glm/glm.hpp>
+#include <glm/gtc/matrix_transform.hpp>
+#include <glm/gtc/type_ptr.hpp>
+
 #include <cassert>
+#include <functional>
 #include <thread>
 #include <ranges>
 #include <string>
 #include <vector>
 
 
-#include "gl_vertexShader.h"
-#include "gl_fragmentShader.h"
-
-
-inline const int WIN_WIDTH = 800;
-inline const int WIN_HEIGHT = 600;
-
+#include "shaders/gl_vertexShader.h"
+#include "shaders/gl_fragmentShader.h"
+#include "TextRenderer.h"
+#include "defines.h"
+#include "LinesRenderer.h"
+#include "SquaresRenderer.h"
 
 GLFWwindow* StartOpenGL() {
     assert( glfwInit() );
@@ -43,12 +47,38 @@ GLFWwindow* StartOpenGL() {
 }
 
 void FramebufferSizeCallback(GLFWwindow* window, int width, int height) {
-    glViewport(width/4, height/4, width/2, height/2);
+    glViewport(0, 0, WIN_WIDTH, WIN_HEIGHT);
 }
+
+enum class DrawMode {
+    IncludedSquares = 0,
+    SierpinskiTriangle = 1,
+};
+
+
+std::function<void()> callbackLeft;
+std::function<void()> callbackRight;
+
+static int num_of_iteractions = 0;
 
 void ProcessInput(GLFWwindow* window) {
     if( glfwGetKey(window, GLFW_KEY_ESCAPE) == GLFW_PRESS ) {
         glfwSetWindowShouldClose(window, true);
+    }
+    if( glfwGetKey(window, GLFW_KEY_LEFT) == GLFW_PRESS ) {
+        callbackLeft();
+    }
+    if( glfwGetKey(window, GLFW_KEY_RIGHT) == GLFW_PRESS ) {
+        callbackRight();
+    }
+    if( glfwGetKey(window, GLFW_KEY_0) == GLFW_PRESS ) {
+        num_of_iteractions = 0;
+    }
+    if( glfwGetKey(window, GLFW_KEY_1) == GLFW_PRESS ) {
+        num_of_iteractions = 1;
+    }
+    if( glfwGetKey(window, GLFW_KEY_2) == GLFW_PRESS ) {
+        num_of_iteractions = 2;
     }
 }
 
@@ -198,82 +228,141 @@ VBOandVAO GenerateVBOandVAO(const std::vector<float>& vertices,  const std::vect
     return {VBO, VAO};
 }
 
-int main() {
-
-    auto win = StartOpenGL();
-
-    // bruh, it is not working on wayland
+void InitIcon(GLFWwindow* win) {
+    // bruh, icon is not working on wayland
     GLFWimage icons[1];
-    icons[0].pixels = stbi_load("./img/icon.png", &icons[0].width, &icons[0].height, 0, 4); //rgba channels
+    icons[0].pixels = stbi_load("./rsc/img/icon.png", &icons[0].width, &icons[0].height, 0, 4); //rgba channels
     glfwSetWindowIcon(win, 1, icons);
     stbi_image_free(icons[0].pixels);
+}
+
+void RecursiveSierpinskiTriangles(const Triangle& currentTriangle, std::vector<Triangle>& appendTo, int depth) {
+    if(depth <= 0) return;
+    for(int i = 0; i < 3; ++i) {
+        Triangle currTriangle;
+        auto nextI = (i + 1) % 3;
+        auto prevI = (i - 1 + 3) % 3;
+
+        currTriangle.p1 = currentTriangle.points[i];
+        currTriangle.p2 = currTriangle.p1 + (currentTriangle.points[nextI] - currTriangle.p1) / 2.0;
+        currTriangle.p3 = currTriangle.p1 + (currentTriangle.points[prevI] - currTriangle.p1) / 2.0;
+
+        appendTo.push_back(currTriangle);
+
+        usleep(100000);
+
+        RecursiveSierpinskiTriangles(currTriangle, appendTo, depth - 1);
+    }
+}
+
+int main() {
 
 
-    glEnable(GL_MULTISAMPLE);
-    glfwSwapInterval(0);
+    auto win = StartOpenGL();
 
     glfwSetFramebufferSizeCallback(win, FramebufferSizeCallback);
     FramebufferSizeCallback(win, WIN_WIDTH, WIN_HEIGHT);
 
-    auto shaderProgram1 = CompileProgram(vertexShaderSource, fragmentShaderSource);
+    TextRenderer textRender;
+    textRender.Init();
 
+    LinesRenderer linesRender;
+    linesRender.Init();
 
-    std::vector<float> vertices = {
-        -0.5f, -0.5f, 0.0f,
-        -0.5f, 0.5f, 0.0f,
-        0.5f, 0.5f, 0.0f,
-        0.5f, -0.5f, 0.0f,
-        -0.5f, -0.5f, 0.0f,
+    SquaresRenderer sqRender;
+
+    InitIcon(win);
+
+    glEnable(GL_CULL_FACE);
+    glEnable(GL_BLEND);
+    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+
+    std::vector<Square> squares;
+    std::vector<Triangle> triangles;
+
+    callbackLeft = [&squares, &triangles] {
+        squares.clear();
+        triangles.clear();
+
+        std::thread t1([&squares] {
+            Square initSquare = {
+                -0.9, -0.9,
+                -0.9, 0.9,
+                0.9, 0.9,
+                0.9, -0.9
+            };
+
+            squares.push_back(initSquare);
+
+            for(int i = 0; i < 50; ++i) {
+                const auto currSquare = squares.back();
+                Square nextSquare;
+                constexpr auto coeff = 1.0 - 0.08;
+
+                for(int j = 0; j < 4; ++j) {
+                    auto nextJ = (j + 1) % 4;
+                    Point vec;
+                    vec.x = currSquare.points[nextJ].x - currSquare.points[j].x;
+                    vec.y = currSquare.points[nextJ].y - currSquare.points[j].y;
+
+                    nextSquare.points[j].x = currSquare.points[j].x + vec.x * coeff;
+                    nextSquare.points[j].y = currSquare.points[j].y + vec.y * coeff;
+                }
+
+                usleep(100000);
+                squares.push_back(nextSquare);
+            }
+        });
+
+        t1.detach();
     };
 
-    for (int i = 0; i < 2500000; ++i) {
-        vertices.push_back(std::rand());
-    }
 
+    callbackRight = [&triangles, &squares] {
+        squares.clear();
+        triangles.clear();
 
-    std::vector indices = {  // note that we start from 0!
-        0, 1, 2, 3, 4, 5, 6, 7, 8, 9,    // first triangle
+        std::thread t2([&triangles] {
+
+            Triangle initTriangle = {
+                -0.9, -0.9,
+                0.0, 0.9,
+                0.9, -0.9,
+            };
+
+            triangles.push_back(initTriangle);
+
+            RecursiveSierpinskiTriangles(initTriangle, triangles, num_of_iteractions);
+        });
+
+        t2.detach();
     };
 
 
-    auto first = GenerateVBOandVAO(vertices, indices);
-
-    // ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-    std::vector modes = {
-        GL_LINE,
-        // GL_FILL,
-        // GL_POINT,
-    };
-
-    auto currMode = modes.begin();
-    auto i = 0;
     while ( !glfwWindowShouldClose(win) ) {
         ProcessInput(win);
 
-        if( currMode == modes.end() ) currMode = modes.begin();
-
-        glPolygonMode(GL_FRONT_AND_BACK, *currMode);
-
-        glClearColor(0.1f, 0.3f, 0.2f, 1.0f);
+        // set background color
+        glClearColor(0.05f, 0.0f, 0.1f, 1.0f);
         glClear(GL_COLOR_BUFFER_BIT);
 
-        glUseProgram(shaderProgram1);
+        textRender.RenderText("Yaroshenko", 000.0f, WIN_HEIGHT - 20.0f, 0.4f);
+        textRender.RenderText("Oleksandr", 000.0f, WIN_HEIGHT - 50.0f, 0.4f);
+        textRender.RenderText("IM-21", 000.0f, WIN_HEIGHT - 80.0f, 0.4f);
 
-        glBindVertexArray(first.VAO);
-        glDrawElements(GL_LINES, 5, GL_UNSIGNED_INT, 0);
-        glBindVertexArray(0);
+
+
+        for(const auto& square : squares) {
+            sqRender.DrawSquare(square);
+        }
+
+        for(const auto& triangle : triangles) {
+            sqRender.DrawTriangle(triangle);
+        }
 
         glfwSwapBuffers(win);
         glfwPollEvents();
-
-        if( !(i % 1000) )++currMode;
-        ++i;
     }
-
-    // free our VAO and VBO
-    glDeleteVertexArrays(1, &first.VAO);
-
-    glDeleteBuffers(1, &first.VBO);
 
     glfwTerminate();
 }
